@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  CATEGORY_OPTIONS,
+  CATEGORY_GROUPS,
   type EventCategory,
   getCategoryDisplay,
 } from "@/src/lib/eventCategories";
@@ -86,10 +86,14 @@ export default function EventsPanel({
           value={category}
         >
           <option value="">All categories</option>
-          {CATEGORY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.emoji} {option.label}
-            </option>
+          {CATEGORY_GROUPS.map((group) => (
+            <optgroup key={group.group} label={group.group}>
+              {group.options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.emoji} {option.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </div>

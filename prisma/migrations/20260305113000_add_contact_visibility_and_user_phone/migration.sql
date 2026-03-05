@@ -1,0 +1,9 @@
+ALTER TABLE "User"
+ADD COLUMN "phone" TEXT;
+
+ALTER TABLE "Event"
+ADD COLUMN "contactVisibility" TEXT NOT NULL DEFAULT 'SIGNED_IN_ONLY';
+
+UPDATE "Event"
+SET "contactMethod" = 'ORGANIZER_PHONE'
+WHERE "contactMethod" = 'OWNER_CONTACT';

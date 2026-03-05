@@ -1,6 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import {
+  CONTACT_METHOD_OPTIONS,
+  CONTACT_VISIBILITY_OPTIONS,
+  type ContactMethod,
+  type ContactVisibility,
+} from "@/src/lib/contactMethods";
 import {
   CATEGORY_GROUPS,
   type EventCategory,
@@ -13,6 +19,8 @@ type FormErrors = {
   customCategoryTitle?: string;
   address?: string;
   date?: string;
+  contactMethod?: string;
+  whatsappInviteUrl?: string;
   location?: string;
 };
 
@@ -56,6 +64,30 @@ function validateLocation(pickedLatLng: LatLng | null): string | undefined {
   return undefined;
 }
 
+function validateWhatsappInviteUrl(
+  contactMethod: ContactMethod,
+  whatsappInviteUrl: string,
+): string | undefined {
+  if (contactMethod !== "WHATSAPP_GROUP") {
+    return undefined;
+  }
+
+  const trimmed = whatsappInviteUrl.trim();
+  if (!trimmed) {
+    return "WhatsApp invite link is required.";
+  }
+
+  const isValidPrefix =
+    trimmed.startsWith("https://chat.whatsapp.com/") ||
+    trimmed.startsWith("https://wa.me/");
+
+  if (!isValidPrefix) {
+    return "Link must start with https://chat.whatsapp.com/ or https://wa.me/";
+  }
+
+  return undefined;
+}
+
 export default function CreateEventForm({
   pickedLatLng,
   onPickedLatLngChange,
@@ -67,6 +99,10 @@ export default function CreateEventForm({
   const [address, setAddress] = useState("");
   const [dateLocal, setDateLocal] = useState("");
   const [description, setDescription] = useState("");
+  const [contactMethod, setContactMethod] = useState<ContactMethod>("NONE");
+  const [contactVisibility, setContactVisibility] =
+    useState<ContactVisibility>("SIGNED_IN_ONLY");
+  const [whatsappInviteUrl, setWhatsappInviteUrl] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeMessage, setGeocodeMessage] = useState<string | null>(null);
@@ -108,13 +144,6 @@ export default function CreateEventForm({
     return `Request failed with status ${response.status}.`;
   };
 
-  const locationLabel = useMemo(() => {
-    if (!pickedLatLng) {
-      return "No location selected";
-    }
-    return `${pickedLatLng.lat.toFixed(5)}, ${pickedLatLng.lng.toFixed(5)}`;
-  }, [pickedLatLng]);
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -128,6 +157,11 @@ export default function CreateEventForm({
           : undefined,
       address: validateAddress(address),
       date: validateDateISO(dateLocal),
+      contactMethod: undefined,
+      whatsappInviteUrl: validateWhatsappInviteUrl(
+        contactMethod,
+        whatsappInviteUrl,
+      ),
       location: validateLocation(pickedLatLng),
     };
 
@@ -160,6 +194,12 @@ export default function CreateEventForm({
           address: address.trim() || undefined,
           description: description.trim() || undefined,
           dateISO,
+          contactMethod,
+          contactVisibility,
+          whatsappInviteUrl:
+            contactMethod === "WHATSAPP_GROUP"
+              ? whatsappInviteUrl.trim()
+              : undefined,
           lat: pickedLatLng!.lat,
           lng: pickedLatLng!.lng,
         }),
@@ -340,6 +380,76 @@ export default function CreateEventForm({
       </div>
 
       <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="contactMethod">
+          Contact method
+        </label>
+        <select
+          className="w-full rounded-md border px-3 py-2 text-sm"
+          id="contactMethod"
+          onChange={(e) => {
+            const value = e.target.value as ContactMethod;
+            setContactMethod(value);
+            if (value !== "WHATSAPP_GROUP") {
+              setWhatsappInviteUrl("");
+            }
+          }}
+          value={contactMethod}
+        >
+          {CONTACT_METHOD_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+
+        {contactMethod === "WHATSAPP_GROUP" ? (
+          <div className="mt-2">
+            <label className="mb-1 block text-sm font-medium" htmlFor="whatsappInviteUrl">
+              WhatsApp group invite link
+            </label>
+            <input
+              className="w-full rounded-md border px-3 py-2 text-sm"
+              id="whatsappInviteUrl"
+              onChange={(e) => setWhatsappInviteUrl(e.target.value)}
+              placeholder="https://chat.whatsapp.com/..."
+              type="url"
+              value={whatsappInviteUrl}
+            />
+          </div>
+        ) : null}
+
+        {contactMethod === "ORGANIZER_PHONE" ? (
+          <p className="mt-2 text-xs text-gray-600">
+            Make sure you added your phone in Settings.
+          </p>
+        ) : null}
+
+        {errors.whatsappInviteUrl ? (
+          <p className="mt-1 text-sm text-red-600">{errors.whatsappInviteUrl}</p>
+        ) : null}
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium" htmlFor="contactVisibility">
+          Contact visibility
+        </label>
+        <select
+          className="w-full rounded-md border px-3 py-2 text-sm"
+          id="contactVisibility"
+          onChange={(e) =>
+            setContactVisibility(e.target.value as ContactVisibility)
+          }
+          value={contactVisibility}
+        >
+          {CONTACT_VISIBILITY_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
         <label className="mb-1 block text-sm font-medium" htmlFor="date">
           Date & Time
         </label>
@@ -366,12 +476,9 @@ export default function CreateEventForm({
         />
       </div>
 
-      <div>
-        <p className="text-sm text-gray-600">Selected location: {locationLabel}</p>
-        {errors.location ? (
-          <p className="mt-1 text-sm text-red-600">{errors.location}</p>
-        ) : null}
-      </div>
+      {errors.location ? (
+        <p className="text-sm text-red-600">{errors.location}</p>
+      ) : null}
 
       <button
         className="rounded-md bg-black px-4 py-2 text-sm font-medium text-white"

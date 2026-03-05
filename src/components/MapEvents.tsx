@@ -313,9 +313,12 @@ export default function MapEvents({
                         </p>
                       ) : null}
                       {event.description ? <p>{event.description}</p> : null}
-                      <p className="text-sm">
-                        {event.lat.toFixed(5)}, {event.lng.toFixed(5)}
-                      </p>
+                      <Link
+                        className="inline-block text-sm text-blue-700 underline"
+                        href={`/events/${event.id}`}
+                      >
+                        View details
+                      </Link>
                       {userId && event.userId === userId ? (
                         <div className="flex items-center gap-2">
                           <Link

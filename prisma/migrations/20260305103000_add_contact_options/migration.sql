@@ -1,0 +1,3 @@
+ALTER TABLE "Event"
+ADD COLUMN "contactMethod" TEXT NOT NULL DEFAULT 'NONE',
+ADD COLUMN "whatsappInviteUrl" TEXT;

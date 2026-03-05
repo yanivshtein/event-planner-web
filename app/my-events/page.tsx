@@ -101,7 +101,11 @@ export default function MyEventsPage() {
           <tbody>
             {events.map((event) => (
               <tr className="border-t" key={event.id}>
-                <td className="px-4 py-3">{event.title}</td>
+                <td className="px-4 py-3">
+                  <Link className="text-blue-700 underline" href={`/events/${event.id}`}>
+                    {event.title}
+                  </Link>
+                </td>
                 <td className="px-4 py-3">{event.address ?? "-"}</td>
                 <td className="px-4 py-3">
                   {event.dateISO ? new Date(event.dateISO).toLocaleString() : "-"}

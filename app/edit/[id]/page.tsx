@@ -5,6 +5,12 @@ import { signIn } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
+  CONTACT_METHOD_OPTIONS,
+  CONTACT_VISIBILITY_OPTIONS,
+  type ContactMethod,
+  type ContactVisibility,
+} from "@/src/lib/contactMethods";
+import {
   CATEGORY_GROUPS,
   type EventCategory,
 } from "@/src/lib/eventCategories";
@@ -57,6 +63,10 @@ export default function EditEventPage() {
   const [address, setAddress] = useState("");
   const [dateLocal, setDateLocal] = useState("");
   const [description, setDescription] = useState("");
+  const [contactMethod, setContactMethod] = useState<ContactMethod>("NONE");
+  const [contactVisibility, setContactVisibility] =
+    useState<ContactVisibility>("SIGNED_IN_ONLY");
+  const [whatsappInviteUrl, setWhatsappInviteUrl] = useState("");
   const [pickedLatLng, setPickedLatLng] = useState<LatLng | null>(null);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [geocodeMessage, setGeocodeMessage] = useState<string | null>(null);
@@ -75,7 +85,7 @@ export default function EditEventPage() {
       setError(null);
 
       try {
-        const response = await fetch("/api/events", {
+        const response = await fetch(`/api/events/${params.id}`, {
           method: "GET",
           cache: "no-store",
         });
@@ -84,16 +94,9 @@ export default function EditEventPage() {
           throw new Error("Failed to load event");
         }
 
-        const data = (await response.json()) as Event[];
-        const found = data.find((item) => item.id === params.id) ?? null;
+        const found = (await response.json()) as Event;
 
         if (!isMounted) {
-          return;
-        }
-
-        if (!found) {
-          setError("Event not found.");
-          setEvent(null);
           return;
         }
 
@@ -104,6 +107,9 @@ export default function EditEventPage() {
         setAddress(found.address ?? "");
         setDateLocal(toDateTimeLocal(found.dateISO));
         setDescription(found.description ?? "");
+        setContactMethod(found.contactMethod ?? "NONE");
+        setContactVisibility(found.contactVisibility ?? "SIGNED_IN_ONLY");
+        setWhatsappInviteUrl(found.whatsappInviteUrl ?? "");
         setPickedLatLng({ lat: found.lat, lng: found.lng });
       } catch {
         if (isMounted) {
@@ -156,6 +162,18 @@ export default function EditEventPage() {
       setSubmitError("Please enter a title for the Other category.");
       return;
     }
+    if (
+      contactMethod === "WHATSAPP_GROUP" &&
+      !(
+        whatsappInviteUrl.trim().startsWith("https://chat.whatsapp.com/") ||
+        whatsappInviteUrl.trim().startsWith("https://wa.me/")
+      )
+    ) {
+      setSubmitError(
+        "WhatsApp invite URL must start with https://chat.whatsapp.com/ or https://wa.me/",
+      );
+      return;
+    }
 
     const dateISO = dateLocal ? new Date(dateLocal).toISOString() : undefined;
 
@@ -176,6 +194,12 @@ export default function EditEventPage() {
           address: address.trim() || undefined,
           description: description.trim() || undefined,
           dateISO,
+          contactMethod,
+          contactVisibility,
+          whatsappInviteUrl:
+            contactMethod === "WHATSAPP_GROUP"
+              ? whatsappInviteUrl.trim()
+              : undefined,
           lat: pickedLatLng.lat,
           lng: pickedLatLng.lng,
         }),
@@ -398,6 +422,70 @@ export default function EditEventPage() {
                   {geocodeMessage}
                 </p>
               ) : null}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium" htmlFor="contactMethod">
+                Contact method
+              </label>
+              <select
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                id="contactMethod"
+                onChange={(e) => {
+                  const value = e.target.value as ContactMethod;
+                  setContactMethod(value);
+                  if (value !== "WHATSAPP_GROUP") {
+                    setWhatsappInviteUrl("");
+                  }
+                }}
+                value={contactMethod}
+              >
+                {CONTACT_METHOD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {contactMethod === "WHATSAPP_GROUP" ? (
+                <div className="mt-2">
+                  <label className="mb-1 block text-sm font-medium" htmlFor="whatsappInviteUrl">
+                    WhatsApp group invite link
+                  </label>
+                  <input
+                    className="w-full rounded-md border px-3 py-2 text-sm"
+                    id="whatsappInviteUrl"
+                    onChange={(e) => setWhatsappInviteUrl(e.target.value)}
+                    placeholder="https://chat.whatsapp.com/..."
+                    type="url"
+                    value={whatsappInviteUrl}
+                  />
+                </div>
+              ) : null}
+              {contactMethod === "ORGANIZER_PHONE" ? (
+                <p className="mt-2 text-xs text-gray-600">
+                  Make sure you added your phone in Settings.
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium" htmlFor="contactVisibility">
+                Contact visibility
+              </label>
+              <select
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                id="contactVisibility"
+                onChange={(e) =>
+                  setContactVisibility(e.target.value as ContactVisibility)
+                }
+                value={contactVisibility}
+              >
+                {CONTACT_VISIBILITY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

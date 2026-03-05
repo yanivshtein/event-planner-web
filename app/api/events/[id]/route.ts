@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAuthSession } from "@/src/lib/auth";
+import {
+  isValidContactMethod,
+  isValidContactVisibility,
+} from "@/src/lib/contactMethods";
 import { isValidCategory } from "@/src/lib/eventCategories";
 import { db } from "@/src/lib/db";
 
@@ -10,6 +14,9 @@ type UpdateEventBody = {
   description?: unknown;
   address?: unknown;
   dateISO?: unknown;
+  contactMethod?: unknown;
+  contactVisibility?: unknown;
+  whatsappInviteUrl?: unknown;
   lat?: unknown;
   lng?: unknown;
 };
@@ -38,6 +45,32 @@ async function resolveUserId(
   }
 
   return undefined;
+}
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const { id } = await context.params;
+
+  const event = await db.event.findUnique({
+    where: { id },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          image: true,
+        },
+      },
+    },
+  });
+
+  if (!event) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(event);
 }
 
 export async function PUT(
@@ -87,6 +120,16 @@ export async function PUT(
     const address =
       typeof body.address === "string" ? body.address.trim() : undefined;
     const dateISO = typeof body.dateISO === "string" ? body.dateISO : undefined;
+    const contactMethod =
+      typeof body.contactMethod === "string" ? body.contactMethod.trim() : "";
+    const contactVisibility =
+      typeof body.contactVisibility === "string"
+        ? body.contactVisibility.trim()
+        : "";
+    const whatsappInviteUrl =
+      typeof body.whatsappInviteUrl === "string"
+        ? body.whatsappInviteUrl.trim()
+        : "";
     const lat = typeof body.lat === "number" ? body.lat : Number.NaN;
     const lng = typeof body.lng === "number" ? body.lng : Number.NaN;
 
@@ -107,6 +150,36 @@ export async function PUT(
     if (category === "OTHER" && customCategoryTitle.length < 2) {
       return NextResponse.json(
         { error: "Please enter a title for the Other category." },
+        { status: 400 },
+      );
+    }
+
+    if (!isValidContactMethod(contactMethod)) {
+      return NextResponse.json(
+        { error: "Contact method is required." },
+        { status: 400 },
+      );
+    }
+
+    if (!isValidContactVisibility(contactVisibility)) {
+      return NextResponse.json(
+        { error: "Contact visibility is required." },
+        { status: 400 },
+      );
+    }
+
+    if (
+      contactMethod === "WHATSAPP_GROUP" &&
+      !(
+        whatsappInviteUrl.startsWith("https://chat.whatsapp.com/") ||
+        whatsappInviteUrl.startsWith("https://wa.me/")
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "WhatsApp invite URL must start with https://chat.whatsapp.com/ or https://wa.me/",
+        },
         { status: 400 },
       );
     }
@@ -137,6 +210,10 @@ export async function PUT(
         description: description || null,
         address: address || null,
         dateISO: dateISO || null,
+        contactMethod,
+        contactVisibility,
+        whatsappInviteUrl:
+          contactMethod === "WHATSAPP_GROUP" ? whatsappInviteUrl : null,
         lat,
         lng,
       },
