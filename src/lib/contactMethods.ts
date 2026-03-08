@@ -10,6 +10,10 @@ export const CONTACT_METHOD_OPTIONS: Array<{
   { value: "ORGANIZER_PHONE", label: "Organizer phone (shared)" },
 ];
 
+export const CONTACT_METHOD_OPTIONS_WITH_COMMUNICATION = CONTACT_METHOD_OPTIONS.filter(
+  (option) => option.value !== "NONE",
+);
+
 export function isValidContactMethod(value: string): value is ContactMethod {
   return CONTACT_METHOD_OPTIONS.some((option) => option.value === value);
 }

@@ -295,6 +295,12 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    if (contactMethod === "NONE") {
+      return NextResponse.json(
+        { error: "Please choose a contact method so participants can reach out." },
+        { status: 400 },
+      );
+    }
 
     if (!isValidContactVisibility(contactVisibility)) {
       return NextResponse.json(

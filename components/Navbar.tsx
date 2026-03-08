@@ -83,7 +83,7 @@ export default function Navbar() {
   }, [status]);
 
   return (
-    <header className="h-14 border-b border-gray-200/90 bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-[1200] h-14 border-b border-gray-200/90 bg-white/95 shadow-sm backdrop-blur">
       <div className="mx-auto flex h-full max-w-6xl items-center justify-between px-4">
         <div className="text-base font-semibold tracking-tight">Event Planner</div>
 

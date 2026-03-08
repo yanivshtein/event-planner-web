@@ -1,13 +1,11 @@
 "use client";
 
 import L, { type DivIcon, type Marker as LeafletMarker } from "leaflet";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import {
   MapContainer,
   Marker,
-  Popup,
   TileLayer,
   useMap,
   useMapEvents,
@@ -17,11 +15,9 @@ import "react-leaflet-cluster/dist/assets/MarkerCluster.css";
 import "react-leaflet-cluster/dist/assets/MarkerCluster.Default.css";
 import {
   CATEGORY_OPTIONS,
-  getCategoryDisplay,
   isValidCategory,
   type EventCategory,
 } from "@/src/lib/eventCategories";
-import { useSessionClient } from "@/src/lib/sessionClient";
 import type { Event } from "@/src/types/event";
 import useCurrentLocation from "@/src/hooks/useCurrentLocation";
 
@@ -29,11 +25,9 @@ type MapEventsProps = {
   initialCenter: [number, number];
   initialZoom: number;
   events: Event[];
-  selectedEventId: string | null;
   pendingFocusEventId: string | null;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, shouldFocus?: boolean) => void;
   onFocusHandled: () => void;
-  onDeleted?: (id: string) => void;
   onBoundsChange?: (bounds: MapBounds) => void;
 };
 
@@ -50,7 +44,10 @@ type FocusControllerProps = {
   eventsById: ReadonlyMap<string, Event>;
   markerRefs: React.MutableRefObject<Record<string, LeafletMarker | null>>;
   userMovedMapRef: React.MutableRefObject<boolean>;
-  ignoreNextBoundsFetchRef: React.MutableRefObject<boolean>;
+  boundsSuppressionRef: React.MutableRefObject<{
+    remaining: number;
+    emitAfter: boolean;
+  }>;
   onFocusHandled: () => void;
 };
 
@@ -63,12 +60,18 @@ type InitialCenterControllerProps = {
   mapInitialized: boolean;
   userHasMovedMap: boolean;
   onMapInitialized: () => void;
-  ignoreNextBoundsFetchRef: React.MutableRefObject<boolean>;
+  boundsSuppressionRef: React.MutableRefObject<{
+    remaining: number;
+    emitAfter: boolean;
+  }>;
 };
 
 type BoundsControllerProps = {
   onBoundsChange?: (bounds: MapBounds) => void;
-  ignoreNextBoundsFetchRef: React.MutableRefObject<boolean>;
+  boundsSuppressionRef: React.MutableRefObject<{
+    remaining: number;
+    emitAfter: boolean;
+  }>;
 };
 
 type InteractionControllerProps = {
@@ -102,7 +105,7 @@ function FocusController({
   eventsById,
   markerRefs,
   userMovedMapRef,
-  ignoreNextBoundsFetchRef,
+  boundsSuppressionRef,
   onFocusHandled,
 }: FocusControllerProps) {
   const map = useMap();
@@ -123,7 +126,10 @@ function FocusController({
       return;
     }
 
-    ignoreNextBoundsFetchRef.current = true;
+    boundsSuppressionRef.current = {
+      remaining: 2,
+      emitAfter: false,
+    };
     map.flyTo([selectedEvent.lat, selectedEvent.lng], map.getZoom(), {
       animate: true,
       duration: 0.5,
@@ -133,8 +139,8 @@ function FocusController({
     marker?.openPopup();
     onFocusHandled();
   }, [
+    boundsSuppressionRef,
     eventsById,
-    ignoreNextBoundsFetchRef,
     map,
     markerRefs,
     onFocusHandled,
@@ -150,7 +156,7 @@ function InitialCenterController({
   mapInitialized,
   userHasMovedMap,
   onMapInitialized,
-  ignoreNextBoundsFetchRef,
+  boundsSuppressionRef,
 }: InitialCenterControllerProps) {
   const map = useMap();
 
@@ -160,14 +166,17 @@ function InitialCenterController({
     }
 
     const firstEvent = events[0];
-    ignoreNextBoundsFetchRef.current = true;
+    boundsSuppressionRef.current = {
+      remaining: 1,
+      emitAfter: false,
+    };
     map.setView([firstEvent.lat, firstEvent.lng], map.getZoom(), {
       animate: false,
     });
     onMapInitialized();
   }, [
+    boundsSuppressionRef,
     events,
-    ignoreNextBoundsFetchRef,
     map,
     mapInitialized,
     onMapInitialized,
@@ -218,40 +227,9 @@ function InteractionController({ onUserMoveMap }: InteractionControllerProps) {
 
 function BoundsController({
   onBoundsChange,
-  ignoreNextBoundsFetchRef,
+  boundsSuppressionRef,
 }: BoundsControllerProps) {
-  const map = useMapEvents({
-    moveend: () => {
-      if (ignoreNextBoundsFetchRef.current) {
-        ignoreNextBoundsFetchRef.current = false;
-        return;
-      }
-
-      const bounds = map.getBounds();
-      onBoundsChange?.({
-        north: bounds.getNorth(),
-        south: bounds.getSouth(),
-        east: bounds.getEast(),
-        west: bounds.getWest(),
-      });
-    },
-    zoomend: () => {
-      if (ignoreNextBoundsFetchRef.current) {
-        ignoreNextBoundsFetchRef.current = false;
-        return;
-      }
-
-      const bounds = map.getBounds();
-      onBoundsChange?.({
-        north: bounds.getNorth(),
-        south: bounds.getSouth(),
-        east: bounds.getEast(),
-        west: bounds.getWest(),
-      });
-    },
-  });
-
-  useEffect(() => {
+  const emitBounds = () => {
     const bounds = map.getBounds();
     onBoundsChange?.({
       north: bounds.getNorth(),
@@ -259,6 +237,43 @@ function BoundsController({
       east: bounds.getEast(),
       west: bounds.getWest(),
     });
+  };
+
+  const map = useMapEvents({
+    moveend: () => {
+      if (boundsSuppressionRef.current.remaining > 0) {
+        boundsSuppressionRef.current.remaining -= 1;
+        if (
+          boundsSuppressionRef.current.remaining === 0 &&
+          boundsSuppressionRef.current.emitAfter
+        ) {
+          boundsSuppressionRef.current.emitAfter = false;
+          emitBounds();
+        }
+        return;
+      }
+
+      emitBounds();
+    },
+    zoomend: () => {
+      if (boundsSuppressionRef.current.remaining > 0) {
+        boundsSuppressionRef.current.remaining -= 1;
+        if (
+          boundsSuppressionRef.current.remaining === 0 &&
+          boundsSuppressionRef.current.emitAfter
+        ) {
+          boundsSuppressionRef.current.emitAfter = false;
+          emitBounds();
+        }
+        return;
+      }
+
+      emitBounds();
+    },
+  });
+
+  useEffect(() => {
+    emitBounds();
   }, [map, onBoundsChange]);
 
   return null;
@@ -292,22 +307,23 @@ export default function MapEvents({
   initialCenter,
   initialZoom,
   events,
-  selectedEventId,
   pendingFocusEventId,
   onSelect,
   onFocusHandled,
-  onDeleted,
   onBoundsChange,
 }: MapEventsProps) {
   const markerRefs = useRef<Record<string, LeafletMarker | null>>({});
   const { status, coords, requestLocation } = useCurrentLocation();
-  const { userId } = useSessionClient();
   const [mapInitialized, setMapInitialized] = useState(false);
   const [userHasMovedMap, setUserHasMovedMap] = useState(false);
   const [recenterTarget, setRecenterTarget] = useState<LatLng | null>(null);
   const userMovedMapRef = useRef(false);
-  const ignoreNextBoundsFetchRef = useRef(false);
+  const boundsSuppressionRef = useRef({
+    remaining: 0,
+    emitAfter: false,
+  });
   const shouldRecenterToCurrentLocationRef = useRef(false);
+  const hasAutoCenteredToCurrentLocationRef = useRef(false);
 
   const mapCenter = useMemo<[number, number]>(() => {
     if (coords) {
@@ -340,28 +356,15 @@ export default function MapEvents({
     [events],
   );
 
-  const handleDeleteEvent = async (id: string) => {
-    try {
-      const response = await fetch(`/api/events/${id}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        return;
-      }
-
-      onDeleted?.(id);
-    } catch {
-      // Keep UI stable if API delete fails.
-    }
-  };
-
   const handleUseMyLocation = () => {
     shouldRecenterToCurrentLocationRef.current = true;
     requestLocation();
 
     if (coords) {
-      ignoreNextBoundsFetchRef.current = true;
+      boundsSuppressionRef.current = {
+        remaining: 1,
+        emitAfter: true,
+      };
       setRecenterTarget(coords);
       shouldRecenterToCurrentLocationRef.current = false;
     }
@@ -373,10 +376,32 @@ export default function MapEvents({
       coords &&
       shouldRecenterToCurrentLocationRef.current
     ) {
-      ignoreNextBoundsFetchRef.current = true;
+      boundsSuppressionRef.current = {
+        remaining: 1,
+        emitAfter: true,
+      };
       setRecenterTarget(coords);
       shouldRecenterToCurrentLocationRef.current = false;
     }
+  }, [coords, status]);
+
+  useEffect(() => {
+    if (
+      status !== "success" ||
+      !coords ||
+      userMovedMapRef.current ||
+      hasAutoCenteredToCurrentLocationRef.current
+    ) {
+      return;
+    }
+
+    boundsSuppressionRef.current = {
+      remaining: 1,
+      emitAfter: true,
+    };
+    setRecenterTarget(coords);
+    setMapInitialized(true);
+    hasAutoCenteredToCurrentLocationRef.current = true;
   }, [coords, status]);
 
   return (
@@ -403,54 +428,48 @@ export default function MapEvents({
           }}
         />
         <InitialCenterController
+          boundsSuppressionRef={boundsSuppressionRef}
           events={events}
-          ignoreNextBoundsFetchRef={ignoreNextBoundsFetchRef}
           mapInitialized={mapInitialized}
           onMapInitialized={() => setMapInitialized(true)}
           userHasMovedMap={userHasMovedMap}
         />
         <FocusController
+          boundsSuppressionRef={boundsSuppressionRef}
           eventsById={eventsById}
-          ignoreNextBoundsFetchRef={ignoreNextBoundsFetchRef}
           markerRefs={markerRefs}
           onFocusHandled={onFocusHandled}
           pendingFocusEventId={pendingFocusEventId}
           userMovedMapRef={userMovedMapRef}
         />
         <BoundsController
-          ignoreNextBoundsFetchRef={ignoreNextBoundsFetchRef}
+          boundsSuppressionRef={boundsSuppressionRef}
           onBoundsChange={onBoundsChange}
         />
         <RecenterController target={recenterTarget} />
 
         <MapReadyGate>
           <MarkerClusterGroup
-            disableClusteringAtZoom={16}
             iconCreateFunction={(cluster: L.MarkerCluster) =>
               makeClusterIcon(cluster.getChildCount())
             }
-            maxClusterRadius={60}
+            maxClusterRadius={80}
             showCoverageOnHover={false}
             spiderfyOnMaxZoom
           >
             {events.map((event) => {
-              const categoryMeta = getCategoryDisplay(
-                event.category,
-                event.customCategoryTitle,
-              );
-              const attendeeCount =
-                event.attendanceCount ?? event._count?.attendances;
-              const formattedDate = event.dateISO
-                ? new Date(event.dateISO).toLocaleString()
-                : null;
-              const displayTitle = event.city
-                ? `${categoryMeta.label} in ${event.city}`
-                : event.title;
-
               return (
                 <Marker
                   eventHandlers={{
-                    click: () => onSelect(event.id),
+                    click: (leafletEvent) => {
+                      const originalEvent = leafletEvent.originalEvent as
+                        | MouseEvent
+                        | undefined;
+                      originalEvent?.stopPropagation();
+                      originalEvent?.preventDefault();
+                      onSelect(event.id, false);
+                      leafletEvent.target.openPopup();
+                    },
                   }}
                   icon={getMarkerIcon(event.category)}
                   key={event.id}
@@ -458,59 +477,7 @@ export default function MapEvents({
                   ref={(marker) => {
                     markerRefs.current[event.id] = marker;
                   }}
-                >
-                  <Popup>
-                    <div className="space-y-2">
-                      <p
-                        className={
-                          selectedEventId === event.id
-                            ? "font-semibold text-indigo-700"
-                            : "font-semibold text-gray-900"
-                        }
-                      >
-                        {categoryMeta.emoji} {displayTitle}
-                      </p>
-                      {event.city ? (
-                        <p className="text-sm text-gray-700">📍 {event.city}</p>
-                      ) : null}
-                      {formattedDate ? (
-                        <p className="text-sm text-gray-700">
-                          🕒 {formattedDate}
-                        </p>
-                      ) : null}
-                      {typeof attendeeCount === "number" ? (
-                        <p className="text-sm text-gray-600">
-                          👥 {attendeeCount} attending
-                        </p>
-                      ) : null}
-                      {event.address ? <p className="text-sm">{event.address}</p> : null}
-                      {event.description ? <p>{event.description}</p> : null}
-                      <Link
-                        className="inline-block text-sm text-indigo-700 underline"
-                        href={`/events/${event.id}`}
-                      >
-                        View details
-                      </Link>
-                      {userId && event.userId === userId ? (
-                        <div className="flex items-center gap-2">
-                          <Link
-                            className="rounded bg-gray-800 px-2 py-1 text-sm text-white"
-                            href={`/edit/${event.id}`}
-                          >
-                            Edit
-                          </Link>
-                          <button
-                            className="rounded bg-red-600 px-2 py-1 text-sm text-white"
-                            onClick={() => handleDeleteEvent(event.id)}
-                            type="button"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </Popup>
-                </Marker>
+                />
               );
             })}
           </MarkerClusterGroup>

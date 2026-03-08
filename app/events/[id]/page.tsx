@@ -549,12 +549,6 @@ export default function EventDetailsPage() {
               <div className="mt-3 flex items-center gap-2">
                 <a
                   className="btn-secondary"
-                  href={`tel:${contactData.phone}`}
-                >
-                  Call
-                </a>
-                <a
-                  className="btn-secondary"
                   href={`https://wa.me/${toDigitsOnly(contactData.phone)}`}
                   rel="noopener noreferrer"
                   target="_blank"

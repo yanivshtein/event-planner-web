@@ -218,7 +218,7 @@ export default function CreatePage() {
         <p className="body-muted text-red-600">{duplicateError}</p>
       ) : null}
 
-      <section className="grid gap-6 md:grid-cols-2">
+      <section className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div>
           <CreateEventForm
             onCityChange={setCityQuery}
@@ -229,13 +229,13 @@ export default function CreatePage() {
           />
         </div>
 
-        <div className="ui-card-static p-3">
-          <h2 className="section-title text-base">Pick the exact location on the map</h2>
+        <div className="ui-card space-y-3">
+          <h2 className="section-title text-lg">Choose the location on the map</h2>
           <p className="body-muted mt-1">
             Choose a city, enter an address, or click directly on the map.
           </p>
           <p className="body-muted">{locationStatusText}</p>
-          <div className="mt-3 h-[360px] overflow-hidden rounded-lg border border-gray-200">
+          <div className="h-[420px] overflow-hidden rounded-xl border border-gray-200 shadow-md">
             <LocationPickerMap
               center={[32.0853, 34.7818]}
               focusLatLng={mapFocusLatLng}

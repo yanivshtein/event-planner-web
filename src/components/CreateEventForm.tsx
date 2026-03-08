@@ -3,14 +3,19 @@
 import { useEffect, useState } from "react";
 import CityAutocomplete from "@/src/components/CityAutocomplete";
 import { isValidCity, normalizeCity } from "@/src/lib/cities";
-import { combineDateAndTimeToISO, TIME_OPTIONS } from "@/src/lib/dateTimeSlots";
 import {
-  CONTACT_METHOD_OPTIONS,
+  combineDateAndTimeToISO,
+  splitISOToDateAndTime,
+  TIME_OPTIONS,
+} from "@/src/lib/dateTimeSlots";
+import {
+  CONTACT_METHOD_OPTIONS_WITH_COMMUNICATION,
   CONTACT_VISIBILITY_OPTIONS,
   type ContactMethod,
   type ContactVisibility,
 } from "@/src/lib/contactMethods";
 import {
+  CATEGORY_OPTIONS,
   CATEGORY_GROUPS,
   getCategoryDisplay,
   type EventCategory,
@@ -34,6 +39,9 @@ type CreateEventFormProps = {
   onPickedLatLngChange: (value: LatLng) => void;
   onCityChange?: (city: string) => void;
   onSubmitSuccess: () => void;
+  submitMode?: "create" | "edit";
+  submitUrl?: string;
+  submitButtonLabel?: string;
   initialValues?: {
     category?: EventCategory;
     customName?: string;
@@ -45,6 +53,7 @@ type CreateEventFormProps = {
     contactVisibility?: ContactVisibility;
     whatsappInviteUrl?: string;
     autoApprove?: boolean;
+    dateISO?: string;
   } | null;
 };
 
@@ -118,6 +127,9 @@ export default function CreateEventForm({
   onPickedLatLngChange,
   onCityChange,
   onSubmitSuccess,
+  submitMode = "create",
+  submitUrl,
+  submitButtonLabel,
   initialValues,
 }: CreateEventFormProps) {
   const [customName, setCustomName] = useState("");
@@ -129,7 +141,8 @@ export default function CreateEventForm({
   const [datePart, setDatePart] = useState("");
   const [timePart, setTimePart] = useState("");
   const [description, setDescription] = useState("");
-  const [contactMethod, setContactMethod] = useState<ContactMethod>("NONE");
+  const [contactMethod, setContactMethod] =
+    useState<ContactMethod>("ORGANIZER_PHONE");
   const [contactVisibility, setContactVisibility] =
     useState<ContactVisibility>("SIGNED_IN_ONLY");
   const [autoApprove, setAutoApprove] = useState(false);
@@ -143,10 +156,22 @@ export default function CreateEventForm({
     category,
     category === "OTHER" ? customCategoryTitle : undefined,
   );
+  const featuredCategoryValues: EventCategory[] = [
+    "COFFEE",
+    "SOCCER",
+    "BASKETBALL",
+    "GYM",
+    "RUNNING",
+    "VOLLEYBALL",
+  ];
   const generatedTitle = city.trim()
     ? `${categoryDisplay.label} in ${city.trim()}`
     : `${categoryDisplay.label} event`;
   const finalTitle = customName.trim() || generatedTitle;
+  const resolvedSubmitMethod = submitMode === "edit" ? "PUT" : "POST";
+  const resolvedSubmitUrl = submitUrl ?? "/api/events";
+  const resolvedSubmitLabel =
+    submitButtonLabel ?? (submitMode === "edit" ? "Save Changes" : "Save Event");
 
   useEffect(() => {
     if (!initialValues) {
@@ -160,12 +185,18 @@ export default function CreateEventForm({
     setCitySelected(Boolean(initialValues.city));
     setAddress(initialValues.address ?? "");
     setDescription(initialValues.description ?? "");
-    setContactMethod(initialValues.contactMethod ?? "NONE");
+    setContactMethod(
+      initialValues.contactMethod === "NONE"
+        ? "ORGANIZER_PHONE"
+        : (initialValues.contactMethod ?? "ORGANIZER_PHONE"),
+    );
     setContactVisibility(initialValues.contactVisibility ?? "SIGNED_IN_ONLY");
     setWhatsappInviteUrl(initialValues.whatsappInviteUrl ?? "");
     setAutoApprove(Boolean(initialValues.autoApprove));
-    setDatePart("");
-    setTimePart("");
+    const { datePart: initialDatePart, timePart: initialTimePart } =
+      splitISOToDateAndTime(initialValues.dateISO);
+    setDatePart(initialDatePart);
+    setTimePart(initialTimePart);
     onCityChange?.(initialValues.city ?? "");
   }, [initialValues, onCityChange]);
 
@@ -186,11 +217,11 @@ export default function CreateEventForm({
     }
 
     if (response.status === 401) {
-      return "You need to sign in before creating an event.";
+      return `You need to sign in before ${submitMode === "edit" ? "editing" : "creating"} an event.`;
     }
 
     if (response.status === 403) {
-      return "You are not allowed to create this event.";
+      return `You are not allowed to ${submitMode === "edit" ? "edit" : "create"} this event.`;
     }
 
     if (response.status === 400) {
@@ -233,9 +264,16 @@ export default function CreateEventForm({
     };
 
     const hasAnyLocationInput =
-      Boolean(address.trim()) || Boolean(city.trim()) || Boolean(pickedLatLng);
+      Boolean(pickedLatLng) ||
+      (Boolean(city.trim()) && citySelected && !validateCity(city)) ||
+      Boolean(address.trim());
     if (!hasAnyLocationInput) {
       nextErrors.location = "Add address, city, or choose a point on the map.";
+    }
+
+    if (contactMethod === "NONE") {
+      nextErrors.contactMethod =
+        "Please choose a contact method so participants can reach out.";
     }
 
     const hasError = Boolean(
@@ -244,6 +282,8 @@ export default function CreateEventForm({
         nextErrors.customCategoryTitle ||
         nextErrors.address ||
         nextErrors.date ||
+        nextErrors.contactMethod ||
+        nextErrors.whatsappInviteUrl ||
         nextErrors.location,
     );
     if (hasError) {
@@ -255,8 +295,8 @@ export default function CreateEventForm({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/events", {
-        method: "POST",
+      const response = await fetch(resolvedSubmitUrl, {
+        method: resolvedSubmitMethod,
         headers: {
           "Content-Type": "application/json",
         },
@@ -364,57 +404,104 @@ export default function CreateEventForm({
   };
 
   return (
-    <form className="ui-card-static space-y-6" onSubmit={handleSubmit}>
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Preview
+    <form className="space-y-6" onSubmit={handleSubmit}>
+      <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm transition hover:shadow-md">
+        <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
+          Live Preview
         </p>
-        <div className="mt-1 rounded-lg border border-gray-200 bg-gray-50 p-3">
-          <p className="text-sm font-medium">
-            {categoryDisplay.emoji} {finalTitle}
-          </p>
-          <p className="mt-1 text-xs text-gray-600">
-            City: {city.trim() || "Select a city"}
-          </p>
-          <p className="mt-1 text-xs text-gray-600">
-            Date:{" "}
+        <p className="mt-2 text-xl font-bold text-gray-900">
+          {categoryDisplay.emoji} {finalTitle}
+        </p>
+        <div className="mt-3 space-y-1 text-sm text-gray-700">
+          <p>📍 {city.trim() || "Choose a city or map location"}</p>
+          <p>
+            🕒{" "}
             {datePart && timePart
               ? new Date(`${datePart}T${timePart}`).toLocaleString()
               : "Not set yet"}
           </p>
+          <p>
+            👥{" "}
+            {autoApprove
+              ? "Anyone can join"
+              : "Request to join (organizer approval required)"}
+          </p>
         </div>
       </div>
 
-      <div>
-        <label className="label-base" htmlFor="category">
-          Category
-        </label>
-        <select
-          className="input-base"
-          id="category"
-          onChange={(e) => {
-            const nextCategory = e.target.value as EventCategory;
-            setCategory(nextCategory);
-            if (nextCategory !== "OTHER") {
-              setCustomCategoryTitle("");
-            }
-          }}
-          value={category}
-        >
-          {CATEGORY_GROUPS.map((group) => (
-            <optgroup key={group.group} label={group.group}>
-              {group.options.map((option) => (
-                <option key={option.value} value={option.value}>
+      <section className="ui-card space-y-4">
+        <h3 className="section-title text-lg">Activity</h3>
+
+        <div className="space-y-2">
+          <p className="label-base mb-0">Quick categories</p>
+          <div className="flex flex-wrap gap-2">
+            {featuredCategoryValues.map((value) => {
+              const option = CATEGORY_OPTIONS.find((item) => item.value === value);
+              if (!option) {
+                return null;
+              }
+              const isActive = category === option.value;
+
+              return (
+                <button
+                  className={[
+                    "cursor-pointer rounded-full px-4 py-2 text-sm font-medium transition",
+                    isActive
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "bg-gray-100 text-gray-700 hover:bg-indigo-100",
+                  ].join(" ")}
+                  key={option.value}
+                  onClick={() => {
+                    setCategory(option.value);
+                    if (option.value !== "OTHER") {
+                      setCustomCategoryTitle("");
+                    }
+                  }}
+                  type="button"
+                >
                   {option.emoji} {option.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="label-base" htmlFor="category">
+            All categories
+          </label>
+          <select
+            className="input-base"
+            id="category"
+            onChange={(e) => {
+              const nextCategory = e.target.value as EventCategory;
+              setCategory(nextCategory);
+              if (nextCategory !== "OTHER") {
+                setCustomCategoryTitle("");
+              }
+            }}
+            value={category}
+          >
+            {CATEGORY_GROUPS.map((group) => (
+              <optgroup key={group.group} label={group.group}>
+                {group.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.emoji} {option.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+
         {category === "OTHER" ? (
-          <div className="mt-2">
+          <div>
+            <label className="label-base" htmlFor="customCategoryTitle">
+              Other category title
+            </label>
             <input
               className="input-base"
+              id="customCategoryTitle"
               maxLength={60}
               onChange={(e) => setCustomCategoryTitle(e.target.value)}
               placeholder="Enter category title"
@@ -426,31 +513,31 @@ export default function CreateEventForm({
             ) : null}
           </div>
         ) : null}
-      </div>
 
-      <div>
-        <label className="label-base" htmlFor="customName">
-          Custom name (optional)
-        </label>
-        <input
-          className="input-base"
-          id="customName"
-          onChange={(e) => setCustomName(e.target.value)}
-          placeholder="Leave empty to generate a name automatically"
-          type="text"
-          value={customName}
-        />
-        {errors.customName ? (
-          <p className="mt-1 text-sm text-red-600">{errors.customName}</p>
-        ) : null}
-      </div>
+        <div>
+          <label className="label-base" htmlFor="customName">
+            Custom name (optional)
+          </label>
+          <input
+            className="input-base"
+            id="customName"
+            onChange={(e) => setCustomName(e.target.value)}
+            placeholder="Leave empty to generate a name automatically"
+            type="text"
+            value={customName}
+          />
+          {errors.customName ? (
+            <p className="mt-1 text-sm text-red-600">{errors.customName}</p>
+          ) : null}
+        </div>
+      </section>
 
-      <div className="rounded-lg border border-gray-200 p-3">
-        <p className="text-sm font-medium">Location</p>
-        <p className="mt-1 text-xs text-gray-600">
+      <section className="ui-card space-y-4">
+        <h3 className="section-title text-lg">Location</h3>
+        <p className="text-xs text-gray-600">
           Use address, city, or map point. At least one is required.
         </p>
-        <div className="mt-3">
+        <div>
           <CityAutocomplete
             label="City"
             onChange={(nextCity) => {
@@ -467,7 +554,7 @@ export default function CreateEventForm({
           </p>
           {errors.city ? <p className="mt-1 text-sm text-red-600">{errors.city}</p> : null}
         </div>
-        <div className="mt-3">
+        <div>
           <label className="label-base" htmlFor="address">
             Address / place (optional)
           </label>
@@ -514,12 +601,12 @@ export default function CreateEventForm({
             </p>
           ) : null}
         </div>
-      </div>
+      </section>
 
-      <div className="rounded-lg border border-gray-200 p-3">
-        <p className="text-sm font-medium">When</p>
-        <p className="mt-1 text-xs text-gray-600">Choose a date and a start time.</p>
-        <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <section className="ui-card space-y-4">
+        <h3 className="section-title text-lg">Date & Time</h3>
+        <p className="text-xs text-gray-600">Choose a date and a start time.</p>
+        <div className="grid gap-3 md:grid-cols-2">
           <div>
             <label className="label-base" htmlFor="date">
               Date
@@ -551,50 +638,57 @@ export default function CreateEventForm({
             </select>
           </div>
         </div>
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="text-xs text-gray-500">
           Time can be selected only in 15-minute increments.
         </p>
-        {errors.date ? <p className="mt-1 text-sm text-red-600">{errors.date}</p> : null}
-      </div>
+        {errors.date ? <p className="text-sm text-red-600">{errors.date}</p> : null}
+      </section>
 
-      <div>
-        <label className="label-base" htmlFor="description">
-          Description
-        </label>
-        <textarea
-          className="input-base"
-          id="description"
-          onChange={(e) => setDescription(e.target.value)}
-          rows={4}
-          value={description}
-        />
-      </div>
+      <section className="ui-card space-y-4">
+        <h3 className="section-title text-lg">Details</h3>
 
-      <div>
-        <label className="label-base" htmlFor="contactMethod">
-          Contact method
-        </label>
-        <select
-          className="input-base"
-          id="contactMethod"
-          onChange={(e) => {
-            const value = e.target.value as ContactMethod;
-            setContactMethod(value);
-            if (value !== "WHATSAPP_GROUP") {
-              setWhatsappInviteUrl("");
-            }
-          }}
-          value={contactMethod}
-        >
-          {CONTACT_METHOD_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <div>
+          <label className="label-base" htmlFor="description">
+            Description
+          </label>
+          <textarea
+            className="input-base"
+            id="description"
+            onChange={(e) => setDescription(e.target.value)}
+            rows={4}
+            value={description}
+          />
+        </div>
+
+        <div>
+          <label className="label-base" htmlFor="contactMethod">
+            Contact method
+          </label>
+          <select
+            className="input-base"
+            id="contactMethod"
+            onChange={(e) => {
+              const value = e.target.value as ContactMethod;
+              setContactMethod(value);
+              if (value !== "WHATSAPP_GROUP") {
+                setWhatsappInviteUrl("");
+              }
+            }}
+            value={contactMethod}
+          >
+            {CONTACT_METHOD_OPTIONS_WITH_COMMUNICATION.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {errors.contactMethod ? (
+            <p className="mt-1 text-sm text-red-600">{errors.contactMethod}</p>
+          ) : null}
+        </div>
 
         {contactMethod === "WHATSAPP_GROUP" ? (
-          <div className="mt-2">
+          <div>
             <label className="label-base" htmlFor="whatsappInviteUrl">
               WhatsApp group invite link
             </label>
@@ -610,66 +704,66 @@ export default function CreateEventForm({
         ) : null}
 
         {contactMethod === "ORGANIZER_PHONE" ? (
-          <p className="mt-2 text-xs text-gray-600">
+          <p className="text-xs text-gray-600">
             Make sure you added your phone in Settings.
           </p>
         ) : null}
 
+        <div>
+          <label className="label-base" htmlFor="contactVisibility">
+            Contact visibility
+          </label>
+          <select
+            className="input-base"
+            id="contactVisibility"
+            onChange={(e) =>
+              setContactVisibility(e.target.value as ContactVisibility)
+            }
+            value={contactVisibility}
+          >
+            {CONTACT_VISIBILITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {errors.whatsappInviteUrl ? (
-          <p className="mt-1 text-sm text-red-600">{errors.whatsappInviteUrl}</p>
+          <p className="text-sm text-red-600">{errors.whatsappInviteUrl}</p>
         ) : null}
-      </div>
+      </section>
 
-      <div>
-        <label className="label-base" htmlFor="contactVisibility">
-          Contact visibility
-        </label>
-        <select
-          className="input-base"
-          id="contactVisibility"
-          onChange={(e) =>
-            setContactVisibility(e.target.value as ContactVisibility)
-          }
-          value={contactVisibility}
-        >
-          {CONTACT_VISIBILITY_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
+      <section className="ui-card space-y-4">
+        <h3 className="section-title text-lg">Join policy</h3>
+        <div>
+          <label className="label-base" htmlFor="joinPolicy">
+            Who can join
+          </label>
+          <select
+            className="input-base"
+            id="joinPolicy"
+            onChange={(event) => {
+              setAutoApprove(event.target.value === "ANYONE");
+            }}
+            value={autoApprove ? "ANYONE" : "REQUEST"}
+          >
+            <option value="ANYONE">Anyone can join</option>
+            <option value="REQUEST">
+              Request to join (organizer approval required)
             </option>
-          ))}
-        </select>
-      </div>
+          </select>
+        </div>
+      </section>
 
-      <div className="rounded-lg border border-gray-200 p-3">
-        <p className="text-sm font-medium">Join settings</p>
-        <label className="label-base mt-2" htmlFor="joinPolicy">
-          Join policy
-        </label>
-        <select
-          className="input-base"
-          id="joinPolicy"
-          onChange={(event) => {
-            setAutoApprove(event.target.value === "ANYONE");
-          }}
-          value={autoApprove ? "ANYONE" : "REQUEST"}
-        >
-          <option value="ANYONE">Anyone can join</option>
-          <option value="REQUEST">
-            Request to join (organizer approval required)
-          </option>
-        </select>
-      </div>
-
-      {errors.location ? (
-        <p className="text-sm text-red-600">{errors.location}</p>
-      ) : null}
+      {errors.location ? <p className="text-sm text-red-600">{errors.location}</p> : null}
 
       <button
-        className="btn-primary"
+        className="w-full rounded-xl bg-indigo-600 py-3 text-lg font-semibold text-white shadow-md transition hover:bg-indigo-700"
         disabled={isSubmitting}
         type="submit"
       >
-        {isSubmitting ? "Saving..." : "Save Event"}
+        {isSubmitting ? "Saving..." : resolvedSubmitLabel}
       </button>
       {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
     </form>
