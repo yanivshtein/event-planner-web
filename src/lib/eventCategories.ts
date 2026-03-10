@@ -43,7 +43,7 @@ export const CATEGORY_GROUPS: Array<{
     options: [
       {
         value: "RACKET_SPORTS",
-        label: "Racket sports (tennis/padel/badminton/squash)",
+        label: "Racket sports",
         emoji: "🎾",
       },
       { value: "SOCCER", label: "Soccer", emoji: "⚽" },

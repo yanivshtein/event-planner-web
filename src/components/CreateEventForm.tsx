@@ -525,7 +525,7 @@ export default function CreateEventForm({
               return (
                 <Button
                   className={[
-                    "min-h-[44px] rounded-full px-4 py-2 text-sm font-medium whitespace-nowrap border",
+                    "min-h-[44px] max-w-full rounded-full border px-4 py-2 text-left text-sm leading-tight font-medium whitespace-normal break-words sm:whitespace-nowrap",
                     isActive
                       ? "border-indigo-500 bg-indigo-600 text-white hover:bg-indigo-700 hover:text-white"
                       : "border-gray-300 bg-gray-100 text-gray-700 hover:bg-indigo-100",
