@@ -267,7 +267,7 @@ export default function CreatePage() {
         <p className="body-muted text-red-600">{duplicateError}</p>
       ) : null}
 
-      <section className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:pb-16">
+      <section className="grid gap-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div>
           <CreateEventForm
             mapSlot={

@@ -517,14 +517,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      <div className="fixed inset-x-4 bottom-4 z-[1100] sm:inset-x-auto sm:bottom-6 sm:right-6">
+      <div className="fixed bottom-4 right-4 z-[1100] max-w-[calc(100vw-2rem)] sm:bottom-6 sm:right-6">
         {isAuthenticated ? (
-          <Button asChild className="w-full rounded-full px-5 py-3 shadow-lg sm:w-auto">
+          <Button asChild className="rounded-full px-5 py-3 shadow-lg">
             <Link href="/create">+ Create activity</Link>
           </Button>
         ) : (
           <Button
-            className="w-full rounded-full px-5 py-3 shadow-lg sm:w-auto"
+            className="rounded-full px-5 py-3 shadow-lg"
             onClick={() => signIn("google", { callbackUrl: "/create" })}
             type="button"
           >

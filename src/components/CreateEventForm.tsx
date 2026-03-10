@@ -140,6 +140,14 @@ export default function CreateEventForm({
   submitButtonLabel,
   initialValues,
 }: CreateEventFormProps) {
+  const renderRequiredMark = () => (
+    <>
+      <span aria-hidden="true" className="ml-1 text-red-600">
+        *
+      </span>
+      <span className="sr-only">required</span>
+    </>
+  );
   const [customName, setCustomName] = useState("");
   const [city, setCity] = useState("");
   const [citySelected, setCitySelected] = useState(false);
@@ -229,6 +237,14 @@ export default function CreateEventForm({
   const resolvedSubmitUrl = submitUrl ?? "/api/events";
   const resolvedSubmitLabel =
     submitButtonLabel ?? (submitMode === "edit" ? "Save Changes" : "Save Event");
+  const cityErrorId = "city-error";
+  const customNameErrorId = "custom-name-error";
+  const customCategoryTitleErrorId = "custom-category-title-error";
+  const addressErrorId = "address-error";
+  const dateErrorId = "date-error";
+  const contactMethodErrorId = "contact-method-error";
+  const whatsappInviteUrlErrorId = "whatsapp-invite-url-error";
+  const locationErrorId = "location-error";
   const previewSection = (
     <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-indigo-100 shadow">
       <CardContent className="p-5">
@@ -498,9 +514,16 @@ export default function CreateEventForm({
 
   return (
     <form
-      className={`space-y-6 ${submitMode === "create" ? "pb-28" : ""}`}
+      className={`space-y-6 ${submitMode === "create" ? "pb-28 md:pb-0" : ""}`}
       onSubmit={handleSubmit}
     >
+      <p className="text-sm text-gray-600">
+        <span aria-hidden="true" className="font-semibold text-red-600">
+          *
+        </span>{" "}
+        Required fields
+      </p>
+
       <div className="hidden md:block">{previewSection}</div>
 
       <Card>
@@ -554,8 +577,10 @@ export default function CreateEventForm({
           </p>
           <label className="label-base" htmlFor="category">
             All categories
+            {renderRequiredMark()}
           </label>
           <Select
+            aria-required="true"
             id="category"
             onChange={(e) => {
               const nextCategory = e.target.value as EventCategory;
@@ -582,17 +607,27 @@ export default function CreateEventForm({
           <div>
             <label className="label-base" htmlFor="customCategoryTitle">
               Other category title
+              {renderRequiredMark()}
             </label>
             <Input
+              aria-describedby={errors.customCategoryTitle ? customCategoryTitleErrorId : undefined}
+              aria-invalid={errors.customCategoryTitle ? "true" : "false"}
               id="customCategoryTitle"
               maxLength={60}
               onChange={(e) => setCustomCategoryTitle(e.target.value)}
               placeholder="Enter category title"
+              required
               type="text"
               value={customCategoryTitle}
             />
             {errors.customCategoryTitle ? (
-              <p className="mt-1 text-sm text-red-600">{errors.customCategoryTitle}</p>
+              <p
+                className="mt-1 text-sm text-red-600"
+                id={customCategoryTitleErrorId}
+                role="alert"
+              >
+                {errors.customCategoryTitle}
+              </p>
             ) : null}
           </div>
         ) : null}
@@ -602,6 +637,8 @@ export default function CreateEventForm({
             Custom name (optional)
           </label>
           <Input
+            aria-describedby={errors.customName ? customNameErrorId : undefined}
+            aria-invalid={errors.customName ? "true" : "false"}
             id="customName"
             onChange={(e) => setCustomName(e.target.value)}
             placeholder="Leave empty to generate a name automatically"
@@ -609,7 +646,9 @@ export default function CreateEventForm({
             value={customName}
           />
           {errors.customName ? (
-            <p className="mt-1 text-sm text-red-600">{errors.customName}</p>
+            <p className="mt-1 text-sm text-red-600" id={customNameErrorId} role="alert">
+              {errors.customName}
+            </p>
           ) : null}
         </div>
         </CardContent>
@@ -629,6 +668,9 @@ export default function CreateEventForm({
             <li>Enter an address or place</li>
             <li>Click directly on the map</li>
           </ul>
+          <p className="mt-2 text-sm font-medium text-indigo-800">
+            Add at least one location option{renderRequiredMark()}
+          </p>
         </div>
         <div>
           <CityAutocomplete
@@ -645,13 +687,19 @@ export default function CreateEventForm({
           <p className="mt-1 text-xs text-gray-500">
             You can leave this empty if you choose the location on the map.
           </p>
-          {errors.city ? <p className="mt-1 text-sm text-red-600">{errors.city}</p> : null}
+          {errors.city ? (
+            <p className="mt-1 text-sm text-red-600" id={cityErrorId} role="alert">
+              {errors.city}
+            </p>
+          ) : null}
         </div>
         <div>
           <label className="label-base" htmlFor="address">
             Address / place (optional)
           </label>
           <Input
+            aria-describedby={errors.address ? addressErrorId : undefined}
+            aria-invalid={errors.address ? "true" : "false"}
             id="address"
             maxLength={120}
             placeholder="Park, street, cafe, forest, trail..."
@@ -680,7 +728,9 @@ export default function CreateEventForm({
             {isGeocoding ? <span className="text-sm text-gray-600">Finding...</span> : null}
           </div>
           {errors.address ? (
-            <p className="mt-1 text-sm text-red-600">{errors.address}</p>
+            <p className="mt-1 text-sm text-red-600" id={addressErrorId} role="alert">
+              {errors.address}
+            </p>
           ) : null}
           {geocodeMessage ? (
             <p
@@ -708,10 +758,14 @@ export default function CreateEventForm({
           <div>
             <label className="label-base" htmlFor="date">
               Date
+              {renderRequiredMark()}
             </label>
             <Input
+              aria-describedby={errors.date ? dateErrorId : undefined}
+              aria-invalid={errors.date ? "true" : "false"}
               id="date"
               onChange={(e) => setDatePart(e.target.value)}
+              required
               type="date"
               value={datePart}
             />
@@ -737,7 +791,11 @@ export default function CreateEventForm({
         <p className="text-xs text-gray-500">
           Time can be selected only in 15-minute increments, or left empty.
         </p>
-        {errors.date ? <p className="text-sm text-red-600">{errors.date}</p> : null}
+        {errors.date ? (
+          <p className="text-sm text-red-600" id={dateErrorId} role="alert">
+            {errors.date}
+          </p>
+        ) : null}
         </CardContent>
       </Card>
 
@@ -762,8 +820,12 @@ export default function CreateEventForm({
         <div>
           <label className="label-base" htmlFor="contactMethod">
             Contact method
+            {renderRequiredMark()}
           </label>
           <Select
+            aria-describedby={errors.contactMethod ? contactMethodErrorId : undefined}
+            aria-invalid={errors.contactMethod ? "true" : "false"}
+            aria-required="true"
             id="contactMethod"
             onChange={(e) => {
               const value = e.target.value as ContactMethod;
@@ -781,7 +843,9 @@ export default function CreateEventForm({
             ))}
           </Select>
           {errors.contactMethod ? (
-            <p className="mt-1 text-sm text-red-600">{errors.contactMethod}</p>
+            <p className="mt-1 text-sm text-red-600" id={contactMethodErrorId} role="alert">
+              {errors.contactMethod}
+            </p>
           ) : null}
         </div>
 
@@ -789,11 +853,17 @@ export default function CreateEventForm({
           <div>
             <label className="label-base" htmlFor="whatsappInviteUrl">
               WhatsApp group invite link
+              {renderRequiredMark()}
             </label>
             <Input
+              aria-describedby={
+                errors.whatsappInviteUrl ? whatsappInviteUrlErrorId : undefined
+              }
+              aria-invalid={errors.whatsappInviteUrl ? "true" : "false"}
               id="whatsappInviteUrl"
               onChange={(e) => setWhatsappInviteUrl(e.target.value)}
               placeholder="https://chat.whatsapp.com/..."
+              required
               type="url"
               value={whatsappInviteUrl}
             />
@@ -852,14 +922,20 @@ export default function CreateEventForm({
         </div>
 
         {errors.whatsappInviteUrl ? (
-          <p className="text-sm text-red-600">{errors.whatsappInviteUrl}</p>
+          <p className="text-sm text-red-600" id={whatsappInviteUrlErrorId} role="alert">
+            {errors.whatsappInviteUrl}
+          </p>
         ) : null}
       </CardContent>
       </Card>
 
       <div className="md:hidden">{previewSection}</div>
 
-      {errors.location ? <p className="text-sm text-red-600">{errors.location}</p> : null}
+      {errors.location ? (
+        <p className="text-sm text-red-600" id={locationErrorId} role="alert">
+          {errors.location}
+        </p>
+      ) : null}
 
       {submitMode === "create" ? (
         <div className="sticky bottom-0 z-20 rounded-t-xl border-t border-gray-200 bg-white/95 px-2 py-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)] backdrop-blur sm:-mx-2">
@@ -902,7 +978,11 @@ export default function CreateEventForm({
           {isSubmitting ? "Saving..." : resolvedSubmitLabel}
         </Button>
       )}
-      {submitError ? <p className="text-sm text-red-600">{submitError}</p> : null}
+      {submitError ? (
+        <p className="text-sm text-red-600" role="alert">
+          {submitError}
+        </p>
+      ) : null}
     </form>
   );
 }
