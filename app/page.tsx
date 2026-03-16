@@ -376,7 +376,7 @@ export default function HomePage() {
       {loadError ? <p className="body-muted text-red-600">{loadError}</p> : null}
 
       <section className="space-y-4">
-        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+        <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
           <Input
             className="!w-auto flex-1 !rounded-full !px-4 !py-2"
             onChange={(e) =>
@@ -386,30 +386,34 @@ export default function HomePage() {
             type="text"
             value={filters.q ?? ""}
           />
-          <div className="flex flex-wrap items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-2 py-1">
-            <span className="px-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+          <div className="rounded-[1.75rem] border border-gray-200 bg-gray-50 p-2">
+            <div className="mb-2 flex items-center px-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
               Time
-            </span>
-            {([
-              { value: "anytime", label: "Anytime" },
-              { value: "today", label: "Today" },
-              { value: "this_week", label: "This week" },
-              { value: "this_weekend", label: "This weekend" },
-            ] as const).map((option) => (
-              <Button
-                className="rounded-full px-3"
-                key={option.value}
-                onClick={() => setTimeFilter(option.value)}
-                size="sm"
-                type="button"
-                variant={timeFilter === option.value ? "default" : "secondary"}
-              >
-                {option.label}
-              </Button>
-            ))}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+              {([
+                { value: "anytime", label: "Anytime" },
+                { value: "today", label: "Today" },
+                { value: "this_week", label: "This week" },
+                { value: "this_weekend", label: "This weekend" },
+              ] as const).map((option) => (
+                <Button
+                  className="w-full rounded-full px-3 sm:w-auto"
+                  key={option.value}
+                  onClick={() => setTimeFilter(option.value)}
+                  size="sm"
+                  type="button"
+                  variant={timeFilter === option.value ? "default" : "secondary"}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
           </div>
           <Select
-            className="!w-auto min-w-44 !rounded-full !px-4 !py-2"
+            className="!w-auto min-w-44 !rounded-full !px-4 !py-2 sm:self-start"
             onChange={(e) =>
               setFilters((prev) => ({
                 ...prev,
@@ -448,16 +452,6 @@ export default function HomePage() {
                 </div>
               ) : null}
 
-              {events.length > 0 ? (
-                <button
-                  className="btn-secondary absolute bottom-3 left-3 z-[1000] lg:hidden"
-                  onClick={() => setIsMobileListOpen((prev) => !prev)}
-                  type="button"
-                >
-              {isMobileListOpen ? "Hide list" : `Show list (${events.length})`}
-                </button>
-              ) : null}
-
               <MapEventsClient
                 events={events}
                 initialCenter={MAP_INITIAL_CENTER}
@@ -467,6 +461,20 @@ export default function HomePage() {
                 onSelect={handleSelectEvent}
                 pendingFocusEventId={pendingFocusEventId}
               />
+
+              {events.length > 0 ? (
+                <button
+                  className="btn-secondary absolute bottom-3 left-3 z-[1000] lg:hidden"
+                  onClick={() => setIsMobileListOpen((prev) => !prev)}
+                  type="button"
+                >
+                  {isMobileListOpen ? "Hide list" : `Show list (${events.length})`}
+                </button>
+              ) : !isLoading ? (
+                <div className="absolute bottom-3 left-3 z-[1000] rounded-full bg-white/95 px-4 py-2 text-sm font-medium text-gray-700 shadow-lg lg:hidden">
+                  No activities in this area
+                </div>
+              ) : null}
 
               {events.length > 0 && isMobileListOpen ? (
                 <div className="absolute inset-x-3 bottom-3 z-[1000] h-[min(60%,26rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl lg:hidden">
@@ -520,26 +528,6 @@ export default function HomePage() {
             ) : null}
           </div>
 
-          {!isLoading && events.length === 0 ? (
-            <div className="ui-card-static text-center lg:hidden">
-              <p className="text-base font-semibold text-gray-900">{emptyTitle}</p>
-              <p className="body-muted mt-1">{emptySubtitle}</p>
-              <div className="mt-4">
-                {isAuthenticated ? (
-                  <Button asChild>
-                    <Link href="/create">Create activity</Link>
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() => signIn("google", { callbackUrl: "/create" })}
-                    type="button"
-                  >
-                    Create activity
-                  </Button>
-                )}
-              </div>
-            </div>
-          ) : null}
         </div>
       </section>
 
