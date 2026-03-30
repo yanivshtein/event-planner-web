@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import CityAutocomplete from "@/src/components/CityAutocomplete";
 import { Button } from "@/src/components/ui/button";
@@ -23,7 +23,6 @@ function isValidPhone(value: string) {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { status, isAuthenticated } = useSessionClient();
   const [phone, setPhone] = useState("");
   const [homeTown, setHomeTown] = useState("");
@@ -35,7 +34,17 @@ export default function OnboardingPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState(0);
-  const returnTo = searchParams.get("returnTo")?.trim() || "/";
+  const [returnTo, setReturnTo] = useState("/");
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const nextReturnTo =
+      new URLSearchParams(window.location.search).get("returnTo")?.trim() || "/";
+    setReturnTo(nextReturnTo);
+  }, []);
 
   const getApiErrorMessage = async (
     response: Response,

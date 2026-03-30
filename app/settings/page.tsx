@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import CityAutocomplete from "@/src/components/CityAutocomplete";
 import { Button } from "@/src/components/ui/button";
@@ -23,7 +23,6 @@ function isValidPhone(value: string) {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { status, isAuthenticated } = useSessionClient();
   const [phone, setPhone] = useState("");
   const [homeTown, setHomeTown] = useState("");
@@ -36,9 +35,19 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [onboardingStep, setOnboardingStep] = useState(0);
-  const onboardingMode = searchParams.get("onboarding") === "1";
-  const returnTo = searchParams.get("returnTo")?.trim() || "/";
+  const [onboardingMode, setOnboardingMode] = useState(false);
+  const [returnTo, setReturnTo] = useState("/");
   const isHomeTownValid = !homeTown.trim() || (homeTownSelected && isValidCity(homeTown));
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    setOnboardingMode(params.get("onboarding") === "1");
+    setReturnTo(params.get("returnTo")?.trim() || "/");
+  }, []);
 
   const getApiErrorMessage = async (
     response: Response,
