@@ -16,6 +16,7 @@ model User {
   homeTown             String?
   interestedCategories String[]       @default([])
   onboardingCompleted  Boolean        @default(false)
+  aiDiscoveryRequests  AiDiscoveryRequest[]
   attendances          Attendance[]
   events               Event[]
   joinRequests         JoinRequest[]
@@ -91,4 +92,17 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead, createdAt])
+}
+
+model AiDiscoveryRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  queryLength Int
+  status      String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@index([userId, status, createdAt])
 }

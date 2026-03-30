@@ -3,13 +3,12 @@ import type { UserSettings } from "@/lib/types/meetmap-discovery";
 
 export async function getUserSettings(userId: string): Promise<UserSettings> {
   const normalizedUserId = userId.trim();
-  const fallbackSettings: UserSettings = {
-    homeCity: "Haifa",
-    interestedActivities: ["music", "food", "art", "social"],
-  };
 
   if (!normalizedUserId) {
-    return fallbackSettings;
+    return {
+      homeCity: null,
+      interestedActivities: [],
+    };
   }
 
   try {
@@ -22,7 +21,10 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
     });
 
     if (!user) {
-      return fallbackSettings;
+      return {
+        homeCity: null,
+        interestedActivities: [],
+      };
     }
 
     return {
@@ -30,6 +32,9 @@ export async function getUserSettings(userId: string): Promise<UserSettings> {
       interestedActivities: user.interestedCategories,
     };
   } catch {
-    return fallbackSettings;
+    return {
+      homeCity: null,
+      interestedActivities: [],
+    };
   }
 }

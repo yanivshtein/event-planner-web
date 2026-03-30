@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 
 const LOGO_SRC = "/logo-icon.png";
@@ -44,10 +44,38 @@ export default function Navbar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [logoFailed, setLogoFailed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const hasLoadedUnreadCountRef = useRef(false);
 
   useEffect(() => {
     if (status !== "authenticated") {
       setUnreadCount(0);
+      hasLoadedUnreadCountRef.current = false;
+      return;
+    }
+
+    const onNotificationsUpdated = (
+      event: Event,
+    ) => {
+      const customEvent = event as CustomEvent<{ unreadCount?: number }>;
+      if (typeof customEvent.detail?.unreadCount === "number") {
+        setUnreadCount(customEvent.detail.unreadCount);
+        return;
+      }
+    };
+
+    window.addEventListener("notifications:updated", onNotificationsUpdated);
+
+    return () => {
+      window.removeEventListener("notifications:updated", onNotificationsUpdated);
+    };
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "authenticated") {
+      return;
+    }
+
+    if (pathname === "/notifications" || hasLoadedUnreadCountRef.current) {
       return;
     }
 
@@ -67,36 +95,20 @@ export default function Navbar() {
         if (cancelled) {
           return;
         }
+
+        hasLoadedUnreadCountRef.current = true;
         setUnreadCount(data.filter((item) => !item.isRead).length);
       } catch {
         // silent fail
       }
     };
 
-    const onNotificationsUpdated = (
-      event: Event,
-    ) => {
-      const customEvent = event as CustomEvent<{ unreadCount?: number }>;
-      if (typeof customEvent.detail?.unreadCount === "number") {
-        setUnreadCount(customEvent.detail.unreadCount);
-        return;
-      }
-
-      void loadUnread();
-    };
-
     void loadUnread();
-    const timerId = setInterval(() => {
-      void loadUnread();
-    }, 30_000);
-    window.addEventListener("notifications:updated", onNotificationsUpdated);
 
     return () => {
       cancelled = true;
-      clearInterval(timerId);
-      window.removeEventListener("notifications:updated", onNotificationsUpdated);
     };
-  }, [status]);
+  }, [pathname, status]);
 
   useEffect(() => {
     if (status !== "authenticated" || pathname === "/settings") {

@@ -124,10 +124,9 @@ export async function searchEvents(
   input: SearchEventsInput,
 ): Promise<{ events: EventCard[] }> {
   const normalizedCity = input.city.trim();
-  const canonicalCity = normalizeCity(normalizedCity) ?? normalizedCity;
-  if (!canonicalCity) {
-    return { events: [] };
-  }
+  const canonicalCity = normalizedCity
+    ? (normalizeCity(normalizedCity) ?? normalizedCity)
+    : null;
 
   const matchedCategories = buildCategoryMatches(input.categories);
   const expirationCutoffISO = new Date(
@@ -136,10 +135,14 @@ export async function searchEvents(
 
   const events = await db.event.findMany({
     where: {
-      city: {
-        equals: canonicalCity,
-        mode: "insensitive",
-      },
+      ...(canonicalCity
+        ? {
+            city: {
+              equals: canonicalCity,
+              mode: "insensitive",
+            },
+          }
+        : {}),
       ...(matchedCategories
         ? {
             category: {

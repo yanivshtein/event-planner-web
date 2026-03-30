@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { signIn } from "next-auth/react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,
@@ -17,6 +18,11 @@ import { useSessionClient } from "@/src/lib/sessionClient";
 
 type DiscoveryApiError = {
   error?: string;
+};
+
+type DiscoveryChatMessage = {
+  role: "user" | "assistant";
+  content: string;
 };
 
 type ChatTurn = {
@@ -44,15 +50,53 @@ function getTopEvents(events: EventCard[]) {
   return events.slice(0, 3);
 }
 
+function buildHistory(turns: ChatTurn[]): DiscoveryChatMessage[] {
+  return turns.flatMap((turn) => {
+    const messages: DiscoveryChatMessage[] = [
+      {
+        role: "user",
+        content: turn.query,
+      },
+    ];
+
+    if (turn.result?.summary) {
+      messages.push({
+        role: "assistant",
+        content: turn.result.summary,
+      });
+    } else if (turn.error) {
+      messages.push({
+        role: "assistant",
+        content: turn.error,
+      });
+    }
+
+    return messages;
+  });
+}
+
 export default function DiscoverAiPage() {
-  const { userId } = useSessionClient();
+  const { userId, status, isAuthenticated } = useSessionClient();
   const [query, setQuery] = useState("");
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentError, setCurrentError] = useState<string | null>(null);
+  const bottomAnchorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    bottomAnchorRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
+  }, [loading, turns]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!isAuthenticated || !userId) {
+      setCurrentError("Please sign in to use MeetMap AI discovery.");
+      return;
+    }
 
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
@@ -71,7 +115,8 @@ export default function DiscoverAiPage() {
         },
         body: JSON.stringify({
           query: trimmedQuery,
-          userId: userId ?? "demo-user",
+          userId,
+          history: buildHistory(turns),
         }),
       });
 
@@ -114,6 +159,40 @@ export default function DiscoverAiPage() {
       setLoading(false);
     }
   };
+
+  if (status === "loading") {
+    return (
+      <main className="app-shell">
+        <p className="body-muted">Checking authentication...</p>
+      </main>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <main className="app-shell page-stack max-w-3xl">
+        <section className="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-blue-50 p-6 shadow-sm md:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-indigo-700">
+            MeetMap AI
+          </p>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight text-gray-900">
+            Discover with AI
+          </h1>
+          <p className="mt-3 max-w-2xl text-base text-gray-600">
+            Sign in to use AI discovery with your MeetMap profile, preferences,
+            and conversation context.
+          </p>
+          <Button
+            className="mt-6"
+            onClick={() => signIn("google", { callbackUrl: "/discover-ai" })}
+            type="button"
+          >
+            Sign in with Google
+          </Button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell page-stack max-w-5xl">
@@ -265,6 +344,8 @@ export default function DiscoverAiPage() {
             </div>
           </div>
         ) : null}
+
+        <div ref={bottomAnchorRef} />
       </section>
 
       <form className="sticky bottom-4 z-10" onSubmit={handleSubmit}>

@@ -73,10 +73,9 @@ export async function getPopularEvents(input: {
   dateText?: string | null;
 }): Promise<{ events: EventCard[] }> {
   const normalizedCity = input.city.trim();
-  const canonicalCity = normalizeCity(normalizedCity) ?? normalizedCity;
-  if (!canonicalCity) {
-    return { events: [] };
-  }
+  const canonicalCity = normalizedCity
+    ? (normalizeCity(normalizedCity) ?? normalizedCity)
+    : null;
 
   const expirationCutoffISO = new Date(
     Date.now() - 24 * 60 * 60 * 1000,
@@ -84,10 +83,14 @@ export async function getPopularEvents(input: {
 
   const events = await db.event.findMany({
     where: {
-      city: {
-        equals: canonicalCity,
-        mode: "insensitive",
-      },
+      ...(canonicalCity
+        ? {
+            city: {
+              equals: canonicalCity,
+              mode: "insensitive",
+            },
+          }
+        : {}),
       OR: [
         { dateISO: null },
         {
